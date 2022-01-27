@@ -8,53 +8,30 @@
 * Author URI:   http://test.com/
 */
 
-/**
- * GET /wp-json/for/v1/posts/{slug}/json
- */
-add_action( 'rest_api_init', function() {
+add_action('init', function() {
 
-    register_rest_route( 'for/v1', '/posts/(?P<slug>[-\w]+)/json', [
-            'methods'  => 'GET',
-            'callback' => 'get_post_endpoint_cb',
-        ]
-    );
+	add_rewrite_endpoint('json', EP_PERMALINK | EP_PAGES);
+    
+});
 
-} );
+add_filter('request', function($vars) {
 
-/**
- * GET /wp-json/for/v1/{slug}/json
- */
-add_action( 'rest_api_init', function() {
+	if ( isset($vars['json'] ) ) {
+		$vars['json'] = true;
+	}
 
-    register_rest_route( 'for/v1', '/(?P<slug>[-\w]+)/json', [
-            'methods'  => 'GET',
-            'callback' => 'get_page_endpoint_cb',
-        ]
-    );
+	return $vars;
 
-} );
+});
 
-/**
- * Callback
- */
-function get_post_endpoint_cb( $request ) {
+add_filter('template_redirect', function($template) {
 
-    $slug = (string)$request['slug'];
-    $response = [];
+	if ( ( is_singular() || is_page() ) && ( get_query_var('json') ) ) {
 
-    $args = [
-        'name'      => $slug,
-        'post_type' => 'post',
-        'status'    => 'publish',
-    ];
-
-    $post = array_shift( get_posts( $args ) );
-
-    if ( $slug && !empty( $post ) ) {
-
+        $post = get_queried_object();
         $password_value = ( !empty( $post->post_password ) ) ? true : false;
-
-        $response = [
+        
+		$response = [
             'id'            => $post->ID,
             'date'          => $post->post_date,  
             'date_gmt'      => $post->post_date_gmt,
@@ -79,67 +56,11 @@ function get_post_endpoint_cb( $request ) {
             #etc.
         ];
 
-    } else {
+        header('Content-Type: text/plain');
+        echo json_encode( $response );
 
-        $response['message'] = "No published post was found with such an slug.";
-
-    }
-
-    return $response;
-
-}
-
-/**
- * Callback
- */
-function get_page_endpoint_cb( $request ) {
-
-    $slug = (string)$request['slug'];
-    $response = [];
-
-    $args = [
-        'name'      => $slug,
-        'post_type' => 'page',
-        'status'    => 'publish',
-    ];
-
-    $page = array_shift( get_posts( $args ) );
-
-    if ( $slug && !empty( $page ) ) {
-
-        $password_value = ( !empty( $page->post_password ) ) ? true : false;
-
-        $response = [
-            'id'            => $page->ID,
-            'date'          => $page->post_date,  
-            'date_gmt'      => $page->post_date_gmt,
-            'guid'          => [
-                'rendered'  => $page->guid
-            ],
-            'slug'          => $page->post_name, 
-            'status'        => $page->post_status,
-            'type'          => $page->post_type,   
-            'title'         => [
-                'rendered'  => $page->post_title
-            ], 
-            'content'       => [
-                'rendered'  => strip_tags( $page->post_content ),
-                'protected' => $password_value,
-            ],
-            'excerpt'       => [
-                'rendered'  => strip_tags( $page->post_excerpt ),
-                'protected' => $password_value,
-            ],
-            'author'        => $page->post_author,  
-            #etc.
-        ];
-
-    } else {
-
-        $response['message'] = "No published post was found with such an slug.";
-
-    }
-
-    return $response;
-
-}
+        exit();
+        
+	}
+	
+});
